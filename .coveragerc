@@ -1,0 +1,13 @@
+
+
+[report]
+exclude_lines =
+    import *
+    from * import *
+    if __name__ == '__main__'
+    if show
+    raise NotImplementedError
+    def show
+    def __init__
+    def __repr__
+    def __str__
