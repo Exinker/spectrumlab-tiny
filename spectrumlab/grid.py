@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import integrate, interpolate
 
-from spectrumlab.spectra import Spectrum
+from spectrumlab.spectrum import Spectrum
 from spectrumlab.types import Array, MicroMeter, Number, T, U
 
 if TYPE_CHECKING:
-    from spectrumlab.peaks.peak import Peak
+    from spectrumlab.peak.peak import Peak
 
 
 class _FactoryBatch:

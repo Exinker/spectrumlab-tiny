@@ -3,9 +3,9 @@ from dataclasses import dataclass, field
 import matplotlib.pyplot as plt
 import numpy as np
 
-from spectrumlab.emulations.noise import Noise
-from spectrumlab.peaks.utils import find_maxima, find_minima, find_pairs
-from spectrumlab.spectra import Spectrum
+from spectrumlab.noise import Noise
+from spectrumlab.peak.utils import find_maxima, find_minima, find_pairs
+from spectrumlab.spectrum import Spectrum
 from spectrumlab.types import Number, U
 
 

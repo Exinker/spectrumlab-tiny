@@ -9,18 +9,18 @@ import numpy as np
 from scipy import interpolate, optimize, signal
 from tqdm import tqdm
 
-from spectrumlab.approximations.scope import ScopeVariables  # noqa: I100
-from spectrumlab.approximations.variables import AbstractVariables, Variable
-from spectrumlab.emulations.curves import pvoigt, rectangular
-from spectrumlab.emulations.noise import Noise
-from spectrumlab.spectra import Spectrum
+from spectrumlab.approximation.scope import ScopeVariables  # noqa: I100
+from spectrumlab.approximation.variables import AbstractVariables, Variable
+from spectrumlab.curves import pvoigt, rectangular
+from spectrumlab.noise import Noise
+from spectrumlab.spectrum import Spectrum
 from spectrumlab.grid import Grid
-from spectrumlab.peaks.peak import DraftPeakConfig, draft_blinks
+from spectrumlab.peak.peak import DraftPeakConfig, draft_blinks
 from spectrumlab.types import Array, MicroMeter, Number, U
 from spectrumlab.utils import mse
 
 if TYPE_CHECKING:
-    from spectrumlab.peaks.analyte_peak import AnalytePeak
+    from spectrumlab.peak.analyte_peak import AnalytePeak
 
 
 warnings.filterwarnings('ignore')

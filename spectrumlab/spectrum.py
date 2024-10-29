@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from spectrumlab import VERSION
-from spectrumlab.emulations.detectors import Detector
+from spectrumlab.detectors import Detector
 from spectrumlab.types import Array, Electron, NanoMeter, Number, Percent
 
 

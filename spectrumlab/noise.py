@@ -3,7 +3,7 @@ from typing import overload
 
 import numpy as np
 
-from spectrumlab.emulations.detectors import Detector
+from spectrumlab.detectors import Detector
 from spectrumlab.types import Array, Electron, Percent
 
 
