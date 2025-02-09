@@ -1,0 +1,17 @@
+[run]
+branch = True
+omit = 
+    src/**/__init__.py
+    src/**/_*.py
+	tests/
+
+[report]
+exclude_also =
+    import *
+    from * import *
+    @abstractmethod
+    def __init__
+    def __repr__
+    def __str__
+    raise NotImplementedError
+    if __name__ == '__main__':
