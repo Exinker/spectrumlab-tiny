@@ -1,3 +1,4 @@
+import logging
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -22,6 +23,9 @@ from spectrumlab.utils import mse
 
 
 warnings.filterwarnings('ignore')
+
+
+LOGGER = logging.getLogger('spectrumlab')
 
 
 # --------        voigt peak shape        --------
@@ -230,8 +234,11 @@ def approx_grid(
 # --------        restore shape        --------
 @dataclass
 class RestoreShapeConfig:
+    default_shape: Shape = field(default=Shape(2, 0, .1))
+
+    error_max: float = field(default=.01)
+    error_mean: float = field(default=.001)
     n_peaks_min: int = field(default=10)
-    error_max: float = field(default=.001)
 
 
 def restore_shape_from_grid(
@@ -306,10 +313,10 @@ def restore_shape_from_spectrum(
 
             # update shape
             grid = Grid.factory(spectrum=spectrum).create_from_blinks(
-                blinks=[blinks[i] for i, mask in enumerate(mask) if not mask],
-                offset=[offset[i] for i, mask in enumerate(mask) if not mask],
-                scale=[scale[i] for i, mask in enumerate(mask) if not mask],
-                background=[background[i] for i, mask in enumerate(mask) if not mask],
+                blinks=[blinks[i] for i, is_masked in enumerate(mask) if not is_masked],
+                offset=[offset[i] for i, is_masked in enumerate(mask) if not is_masked],
+                scale=[scale[i] for i, is_masked in enumerate(mask) if not is_masked],
+                background=[background[i] for i, is_masked in enumerate(mask) if not is_masked],
             )
             shape = restore_shape_from_grid(
                 grid=grid,
@@ -331,11 +338,21 @@ def restore_shape_from_spectrum(
             mask[i] = True
 
             # breakpoints
-            if max(np.abs(error[index])) <= restore_shape_config.error_max:
+            if np.mean(np.abs(error[index])) <= restore_shape_config.error_mean:
+                LOGGER.debug('Breakpoint: error_mean (%s peaks)', len(index))
+                break
+            if np.max(np.abs(error[index])) <= restore_shape_config.error_max:
+                LOGGER.debug('Breakpoint: error_max (%s peaks)', len(index))
                 break
 
             if len(index) <= restore_shape_config.n_peaks_min:
+                LOGGER.debug('Breakpoint: n_peaks_min (%s peaks)', len(index))
                 break
+
+        LOGGER.debug('Peaks index: %s', error[index])
+        LOGGER.debug('Peaks offset: %s', offset[index])
+        LOGGER.debug('Peaks scale: %s', scale[index])
+        LOGGER.debug('Peaks background: %s', background[index])
 
     if figures:
 

@@ -42,8 +42,10 @@ class DraftPeakConfig:
     except_sloped_peak: bool = field(default=True)
     except_edges: bool = field(default=False)
 
-    noise_level: float = field(default=10)
     slope_max: float = field(default=.25)  # if the slope is more, this is a tail of a peak
+    amplitude_min: float = field(default=0)
+
+    noise_level: float = field(default=10)
 
 
 def draft_blinks(
@@ -94,6 +96,9 @@ def draft_blinks(
         # check blink's amplitude
         _amplitude = spectrum.intensity[maximum] - (spectrum.intensity[left] + spectrum.intensity[right])/2  # от среднего значения на границах до максимума
         _deviation = (deviation[maximum]**2 + .25*deviation[left]**2 + .25*deviation[right]**2)**0.5
+
+        if _amplitude < config.amplitude_min:
+            continue
 
         if _amplitude < config.noise_level * _deviation:
             continue

@@ -5,6 +5,9 @@ from spectrumlab.grid import Grid
 from spectrumlab.types import Number
 
 
+TOLL = 1e-10
+
+
 class ScopeVariables(AbstractVariables):
 
     def __init__(
@@ -15,31 +18,52 @@ class ScopeVariables(AbstractVariables):
         background: float | None = None,
     ):
         super().__init__([
-            self._init_position(grid, position=position),
-            self._init_intensity(grid, intensity=intensity),
-            self._init_background(grid, background=background),
+            calculate_position(grid, position=position),
+            calculate_intensity(grid, intensity=intensity),
+            calculate_background(grid, background=background),
         ])
 
         self.name = 'scope'
 
-    def _init_position(self, grid: Grid, position: Number | None = None) -> Variable:
-        initial = grid.x[np.argmax(grid.y)] if position is None else position
-        bounds = (initial-2, initial+2) if position is None else (initial-1e-10, initial+1e-10)
-        final = position
 
-        return Variable('position', initial, bounds, final)
+def calculate_position(
+    grid: Grid,
+    position: Number | None = None,
+) -> Variable:
+    initial = position or grid.x[np.argmax(grid.y)]
 
-    def _init_intensity(self, grid: Grid, intensity: float | None = None) -> Variable:
-        initial = np.sum(grid.y)*(grid.x[-1] - grid.x[0])/len(grid) if intensity is None else intensity
-        bounds = (0, +np.inf) if intensity is None else (intensity - 1e-10, intensity + 1e-10)
-        final = intensity
+    if position is None:
+        bounds = (initial-2, initial+2)
+    else:
+        bounds = (initial-TOLL, initial+TOLL)
 
-        return Variable('intensity', initial, bounds, final)
+    return Variable('position', initial, bounds, position)
 
-    def _init_background(self, grid: Grid, background: float | None = None) -> Variable:
-        initial = min(grid.y) if background is None else background
-        # bounds = (min(grid.y), max(grid.y)) if background is None else (background - 1e-10, background + 1e-10)
-        bounds = (0, 0) if background is None else (background - 1e-10, background + 1e-10)
-        final = background
 
-        return Variable('background', initial, bounds, final)
+def calculate_intensity(
+    grid: Grid,
+    intensity: float | None = None,
+) -> Variable:
+    initial = intensity or np.sum(grid.y)*(grid.x[-1] - grid.x[0])/len(grid)
+
+    if intensity is None:
+        bounds = (0, +np.inf)
+    else:
+        bounds = (intensity-TOLL, intensity+TOLL)
+
+    return Variable('intensity', initial, bounds, intensity)
+
+
+def calculate_background(
+    grid: Grid,
+    background: float | None = None,
+) -> Variable:
+    initial = background or min(grid.y)
+
+    if background is None:
+        bounds = (min(grid.y), max(grid.y))
+    else:
+        bounds = (background-TOLL, background+TOLL)
+
+    return Variable('background', initial, bounds, background)
+
