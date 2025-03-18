@@ -1,10 +1,7 @@
-from collections.abc import Iterator, Sequence
-from typing import Callable, TYPE_CHECKING
-from warnings import warn
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy import integrate, interpolate
 
 from spectrumlab.spectra import Spectrum
 from spectrumlab.types import Array, MicroMeter, Number, T, U

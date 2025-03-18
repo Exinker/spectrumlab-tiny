@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spectrumlab-tiny"
-version = "0.1.0"
+version = "0.1.2"
 description = "`spectrumlab-tiny` is a tiny version of `spectrumlab` library for estimate peak's shape profile."
 readme = "README.md"
 keywords = [

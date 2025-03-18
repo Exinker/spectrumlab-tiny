@@ -1,14 +1,13 @@
 import pickle
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections.abc import Mapping
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from spectrumlab import VERSION
 from spectrumlab.emulations.detectors import Detector
-from spectrumlab.types import Array, Electron, NanoMeter, Number, Percent
+from spectrumlab.types import Array, NanoMeter, Number
 
 
 class AbstractSpectrum(ABC):

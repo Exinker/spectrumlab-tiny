@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from spectrumlab.emulations.noise import Noise
@@ -36,15 +35,15 @@ class Peak:
 
 @dataclass(frozen=True, slots=True)
 class DraftPeakConfig:
-    n_counts_min: int = field(default=1)
-    n_counts_max: int = field(default=500)
+    n_counts_min: int = field(default=10)
+    n_counts_max: int = field(default=100)
 
     except_clipped_peak: bool = field(default=True)
     except_sloped_peak: bool = field(default=True)
     except_edges: bool = field(default=False)
 
-    noise_level: float = field(default=3)
-    slope_max: float = field(default=1)  # if the slope is more, this is a tail of a peak
+    noise_level: float = field(default=10)
+    slope_max: float = field(default=.25)  # if the slope is more, this is a tail of a peak
 
 
 def draft_blinks(

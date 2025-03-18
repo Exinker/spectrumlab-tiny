@@ -1,10 +1,10 @@
 import warnings
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from functools import partial
 from typing import Callable, Literal
 from typing import overload
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from scipy import interpolate, optimize, signal
@@ -14,10 +14,10 @@ from spectrumlab.approximations.scope import ScopeVariables  # noqa: I100
 from spectrumlab.approximations.variables import AbstractVariables, Variable
 from spectrumlab.emulations.curves import pvoigt, rectangular
 from spectrumlab.emulations.noise import Noise
-from spectrumlab.spectra import Spectrum
 from spectrumlab.grid import Grid
 from spectrumlab.peaks.peak import DraftPeakConfig, draft_blinks
-from spectrumlab.types import Array, MicroMeter, Number, U
+from spectrumlab.spectra import Spectrum
+from spectrumlab.types import Array, Number, U
 from spectrumlab.utils import mse
 
 
@@ -90,7 +90,14 @@ class AssociatedShapeVariables(AbstractVariables):
 
 class Shape:
 
-    def __init__(self, width: Number, asymmetry: float, ratio: float, rx: Number = 10, dx: Number = 1e-2) -> None:
+    def __init__(
+        self,
+        width: Number,
+        asymmetry: float,
+        ratio: float,
+        rx: Number = 20,
+        dx: Number = 1e-2,
+    ) -> None:
         """Voigt peak's shape. A convolution of apparatus shape and aperture shape (rectangular) of a detector.
 
         Params:
@@ -98,7 +105,7 @@ class Shape:
             asymmetry: float - apparatus shape's asymmetry
             ratio: float - apparatus shape's ratio
 
-            rx: Number = 10 - range of convolution grid
+            rx: Number = 20 - range of convolution grid
             dx: Number = 0.01 - step of convolution grid
         """
         super().__init__()
@@ -128,7 +135,11 @@ class Shape:
     def f(self) -> Callable[[Array[Number]], Array[U]]:
         return self._f
 
-    def get_content(self, sep: Literal[r'\n', '; '] = '; ', is_signed: bool = True) -> str:
+    def get_content(
+        self,
+        sep: Literal[r'\n', '; '] = '; ',
+        is_signed: bool = True,
+    ) -> str:
         sign = {+1: '+'}.get(np.sign(self.asymmetry), '') if is_signed else ''
 
         return sep.join([
@@ -137,7 +148,6 @@ class Shape:
             f'ratio={self.ratio:.4f}',
         ])
 
-    # --------        fabric        --------
     @classmethod
     def from_grid(
         cls,
@@ -183,7 +193,10 @@ class Shape:
         return f'{cls.__name__}({self.get_content()})'
 
 
-def approx_grid(grid: Grid, shape: Shape) -> tuple[ScopeVariables, float]:
+def approx_grid(
+    grid: Grid,
+    shape: Shape,
+) -> tuple[ScopeVariables, float]:
     """Approximate grid by Shape."""
 
     def _loss(params: Sequence[float], grid: Grid, shape: Shape) -> float:
@@ -214,7 +227,16 @@ def approx_grid(grid: Grid, shape: Shape) -> tuple[ScopeVariables, float]:
     return scope_variables, error
 
 
-def restore_shape_from_grid(grid: Grid) -> 'Shape':
+# --------        restore shape        --------
+@dataclass
+class RestoreShapeConfig:
+    n_peaks_min: int = field(default=10)
+    error_max: float = field(default=.001)
+
+
+def restore_shape_from_grid(
+    grid: Grid,
+) -> 'Shape':
     """Restore voigt peaks's shape from standardized grid."""
 
     def _loss(grid: Grid, params: Sequence[float]) -> float:
@@ -243,24 +265,19 @@ def restore_shape_from_grid(grid: Grid) -> 'Shape':
 def restore_shape_from_spectrum(
     spectrum: Spectrum,
     noise: Noise,
-    verbose: bool = False,
+    draft_peak_config: DraftPeakConfig | None = None,
+    restore_shape_config: RestoreShapeConfig | None = None,
     figures: Mapping[str, Figure] | None = None,
 ) -> Shape:
+
+    draft_peak_config = draft_peak_config or DraftPeakConfig()
+    restore_shape_config = restore_shape_config or RestoreShapeConfig()
 
     # draft blinks
     blinks = draft_blinks(
         spectrum=spectrum,
         noise=noise,
-        config=DraftPeakConfig(
-            n_counts_min=10,
-            n_counts_max=100,
-
-            except_clipped_peak=True,
-            except_sloped_peak=True,
-            except_edges=False,
-
-            noise_level=10,
-        ),
+        config=draft_peak_config,
     )
 
     # calculate shape
@@ -271,7 +288,7 @@ def restore_shape_from_spectrum(
     background = np.zeros(n_blinks)
     error = np.zeros(n_blinks)
     mask = np.full(n_blinks, False)
-    for i, blink in tqdm(enumerate(blinks), total=n_blinks, desc='Initializing:', unit='blinks', disable=not verbose):
+    for i, blink in tqdm(enumerate(blinks), total=n_blinks, desc='Initializing:', unit='blinks', disable=True):
         lb, ub = blink.minima
         grid = Grid(spectrum.number[lb:ub], spectrum.intensity[lb:ub], units=Number)
 
@@ -283,7 +300,7 @@ def restore_shape_from_spectrum(
         )
         offset[i], scale[i], background[i] = scope_variables.value
 
-    with tqdm(desc='Filtration:', unit='blinks', disable=not verbose) as pbar:
+    with tqdm(desc='Filtration:', unit='blinks', disable=True) as pbar:
         while True:
             pbar.update(1)
 
@@ -314,10 +331,10 @@ def restore_shape_from_spectrum(
             mask[i] = True
 
             # breakpoints
-            if max(np.abs(error[index])) <= .001:
+            if max(np.abs(error[index])) <= restore_shape_config.error_max:
                 break
 
-            if len(index) <= 10:
+            if len(index) <= restore_shape_config.n_peaks_min:
                 break
 
     if figures:
@@ -348,7 +365,7 @@ def restore_shape_from_spectrum(
                 alpha=1,
             )
 
-            n_points = 5*(blink.minima[1] - blink.minima[0] + 1)
+            n_points = 5 * (blink.minima[1] - blink.minima[0] + 1)
             x = np.linspace(spectrum.wavelength[blink.minima[0]], spectrum.wavelength[blink.minima[1]], n_points)
             y_hat = shape(np.linspace(spectrum.number[blink.minima[0]], spectrum.number[blink.minima[1]], n_points),  offset[i], scale[i], background[i])
             ax.plot(
