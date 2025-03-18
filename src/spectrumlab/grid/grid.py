@@ -141,22 +141,6 @@ class Grid:
             MicroMeter: r'[$\mu m$]',
         }.get(self.units, '')
 
-    def show(self) -> None:
-        fig, ax = plt.subplots(figsize=(6, 4), tight_layout=True)
-
-        x, y = self.x, self.y
-        plt.plot(
-            x, y,
-            color='red', linestyle='none', marker='s', markersize=3,
-            alpha=1,
-        )
-
-        plt.xlabel(self.xlabel)
-        plt.ylabel(r'$f$')
-        plt.grid(color='grey', linestyle=':')
-
-        plt.show()
-
     def __len__(self) -> int:
         return len(self.x)
 

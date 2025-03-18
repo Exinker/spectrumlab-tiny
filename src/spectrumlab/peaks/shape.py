@@ -1,11 +1,12 @@
 import warnings
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from functools import partial
-from typing import Callable, Literal, TYPE_CHECKING
+from typing import Callable, Literal
 from typing import overload
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.figure import Figure
 from scipy import interpolate, optimize, signal
 from tqdm import tqdm
 
@@ -18,9 +19,6 @@ from spectrumlab.grid import Grid
 from spectrumlab.peaks.peak import DraftPeakConfig, draft_blinks
 from spectrumlab.types import Array, MicroMeter, Number, U
 from spectrumlab.utils import mse
-
-if TYPE_CHECKING:
-    from spectrumlab.peaks.analyte_peak import AnalytePeak
 
 
 warnings.filterwarnings('ignore')
@@ -141,7 +139,10 @@ class Shape:
 
     # --------        fabric        --------
     @classmethod
-    def from_grid(cls, grid: Grid, show: bool = False, scale: MicroMeter = 1) -> 'Shape':
+    def from_grid(
+        cls,
+        grid: Grid,
+    ) -> 'Shape':
 
         def _loss(grid: Grid, params: Sequence[float]) -> float:
             shape_variables, scope_variables = AssociatedShapeVariables.parse_params(grid=grid, params=params)
@@ -167,51 +168,6 @@ class Shape:
 
         # shape
         shape = cls(**shape_variables)
-
-        # show
-        if show:
-            fig, ax = plt.subplots(figsize=(6, 4), tight_layout=True)
-
-            x, y = grid.x, grid.y
-            plt.plot(
-                scale*x, y,
-                color='red', linestyle='none', marker='s', markersize=3,
-                alpha=1,
-            )
-
-            x = grid.space()
-            y_hat = shape(x, **scope_variables)
-            plt.plot(
-                scale*x, y_hat,
-                color='black', linestyle='-', linewidth=1,
-                alpha=1,
-            )
-
-            x, y = grid.x, grid.y
-            y_hat = shape(grid.x, **scope_variables)
-            plt.plot(
-                scale*x, y - y_hat,
-                color='black', linestyle='none', marker='s', markersize=0.5,
-                alpha=1,
-            )
-
-            content = cls.get_content(shape, sep='\n')
-            plt.text(
-                0.05, 0.95,
-                content,
-                transform=ax.transAxes,
-                ha='left', va='top',
-            )
-
-            xlim = 5 if scale == 1 else 50
-            plt.xlim([-xlim, +xlim])
-            plt.xlabel(r'$number$' if scale == 1 else r'$x$ [$\mu m$]')
-            plt.ylabel(r'$I$ [$\%$]')
-            plt.grid(color='grey', linestyle=':')
-
-            plt.show()
-
-        #
         return shape
 
     @overload
@@ -227,7 +183,7 @@ class Shape:
         return f'{cls.__name__}({self.get_content()})'
 
 
-def approx_grid(grid: Grid, shape: Shape, show: bool = False) -> tuple[ScopeVariables, float]:
+def approx_grid(grid: Grid, shape: Shape) -> tuple[ScopeVariables, float]:
     """Approximate grid by Shape."""
 
     def _loss(params: Sequence[float], grid: Grid, shape: Shape) -> float:
@@ -255,45 +211,10 @@ def approx_grid(grid: Grid, shape: Shape, show: bool = False) -> tuple[ScopeVari
     y_hat = shape(x=grid.x, **scope_variables)
     error = mse(y, y_hat) / scope_variables['intensity']
 
-    if show:
-        plt.subplots(figsize=(6, 4), tight_layout=True)
-
-        plt.title(f'error: {error:.5f}')
-
-        x, y = grid.x, grid.y
-        plt.plot(
-            x, y,
-            color='red', linestyle='none', marker='s', markersize=3,
-            alpha=1,
-        )
-
-        x = np.linspace(min(grid.x), max(grid.x), 1000)
-        y_hat = shape(x, **scope_variables)
-        plt.plot(
-            x, y_hat,
-            color='black', linestyle='-', linewidth=1,
-            alpha=1,
-        )
-
-        x, y = grid.x, grid.y
-        y_hat = shape(x, **scope_variables)
-        plt.plot(
-            x, y - y_hat,
-            color='black', linestyle='none', marker='s', markersize=0.5,
-            alpha=1,
-        )
-
-        plt.xlim([-10, +10])
-        plt.xlabel(r'$number$')
-        plt.ylabel(r'$I$ [$\%$]')
-        plt.grid(color='grey', linestyle=':')
-
-        plt.show()
-
     return scope_variables, error
 
 
-def restore_shape_from_grid(grid: Grid, show: bool = False) -> 'Shape':
+def restore_shape_from_grid(grid: Grid) -> 'Shape':
     """Restore voigt peaks's shape from standardized grid."""
 
     def _loss(grid: Grid, params: Sequence[float]) -> float:
@@ -316,47 +237,6 @@ def restore_shape_from_grid(grid: Grid, show: bool = False) -> 'Shape':
     # assert res['success'], 'Optimization is not succeeded!'
 
     shape = Shape(*res['x'])
-
-    if show:
-        fig, ax = plt.subplots(figsize=(6, 4), tight_layout=True)
-
-        x, y = grid.x, grid.y
-        plt.plot(
-            x, y,
-            color='red', linestyle='none', marker='s', markersize=3,
-            alpha=1,
-        )
-
-        x = grid.space()
-        y_hat = shape(x, 0, 1)
-        plt.plot(
-            x, y_hat,
-            color='black', linestyle='-', linewidth=1,
-            alpha=1,
-        )
-
-        x, y = grid.x, grid.y
-        y_hat = shape(grid.x, 0, 1)
-        plt.plot(
-            x, y - y_hat,
-            color='black', linestyle='none', marker='s', markersize=0.5,
-            alpha=1,
-        )
-
-        plt.text(
-            0.05, 0.95,
-            shape.get_content(sep='\n'),
-            transform=ax.transAxes,
-            ha='left', va='top',
-        )
-
-        plt.xlim([-10, +10])
-        plt.xlabel(r'$number$')
-        plt.ylabel(r'$I$ [$\%$]')
-        plt.grid(color='grey', linestyle=':')
-
-        plt.show()
-
     return shape
 
 
@@ -364,7 +244,7 @@ def restore_shape_from_spectrum(
     spectrum: Spectrum,
     noise: Noise,
     verbose: bool = False,
-    show: bool = False,
+    figures: Mapping[str, Figure] | None = None,
 ) -> Shape:
 
     # draft blinks
@@ -416,7 +296,6 @@ def restore_shape_from_spectrum(
             )
             shape = restore_shape_from_grid(
                 grid=grid,
-                show=False,
             )
 
             # update offset, scale, background
@@ -425,7 +304,6 @@ def restore_shape_from_spectrum(
                 scope_variables, error[i] = approx_grid(
                     grid=Grid(spectrum.number[lb:ub], spectrum.intensity[lb:ub], units=Number),
                     shape=shape,
-                    show=False,
                 )
                 offset[i], scale[i], background[i] = scope_variables.value
 
@@ -442,28 +320,61 @@ def restore_shape_from_spectrum(
             if len(index) <= 10:
                 break
 
-    if show:
-        fig, (ax_left, ax_mid, ax_right) = plt.subplots(ncols=3, figsize=(15, 5), tight_layout=True)
+    if figures:
 
-        plt.sca(ax_left)
-        spectrum.show(ax=ax_left)
-        for blink in [blinks[i] for i, mask in enumerate(mask) if mask]:
+        # --------        spectrum        --------
+        ax = figures['spectrum'].gca()
+        ax.clear()
+
+        x = spectrum.wavelength
+        y = spectrum.intensity
+        ax.step(
+            x, y,
+            where='mid',
+            color='black',
+        )
+
+        for i, (blink, is_masked) in enumerate(zip(blinks, mask)):
             x, y = spectrum.wavelength[blink.number], spectrum.intensity[blink.number]
-            plt.step(
+            color = {
+                False: 'red',
+                True: 'grey',
+            }[is_masked]
+
+            ax.step(
                 x, y,
                 where='mid',
-                color='grey',
+                color=color,
                 alpha=1,
             )
-        for blink in [blinks[i] for i, mask in enumerate(mask) if not mask]:
-            x, y = spectrum.wavelength[blink.number], spectrum.intensity[blink.number]
-            plt.step(
-                x, y,
-                where='mid',
-                color='red',
+
+            n_points = 5*(blink.minima[1] - blink.minima[0] + 1)
+            x = np.linspace(spectrum.wavelength[blink.minima[0]], spectrum.wavelength[blink.minima[1]], n_points)
+            y_hat = shape(np.linspace(spectrum.number[blink.minima[0]], spectrum.number[blink.minima[1]], n_points),  offset[i], scale[i], background[i])
+            ax.plot(
+                x, y_hat,
+                color='black', linestyle=':', linewidth=1,
+                alpha=1,
             )
 
-        plt.sca(ax_mid)
+            x, y = spectrum.wavelength[blink.number], spectrum.intensity[blink.number]
+            y_hat = shape(spectrum.number[blink.number], offset[i], scale[i], background[i])
+            ax.plot(
+                x, y - y_hat,
+                color='black', linestyle='none', marker='s', markersize=0.5,
+                alpha=1,
+            )
+
+        ax.set_xlabel(r'$\lambda$ [$nm$]')
+        ax.set_ylabel(r'$I$ [$\%$]')
+        ax.grid(
+            color='grey', linestyle=':',
+        )
+
+        # --------        shape        --------
+        ax = figures['shape'].gca()
+        ax.clear()
+
         grid = Grid.factory(spectrum=spectrum).create_from_blinks(
             blinks=[blinks[i] for i, mask in enumerate(mask) if mask],
             offset=[offset[i] for i, mask in enumerate(mask) if mask],
@@ -471,7 +382,7 @@ def restore_shape_from_spectrum(
             background=[background[i] for i, mask in enumerate(mask) if mask],
         )
         x, y = grid.x, grid.y
-        plt.plot(
+        ax.plot(
             x, y,
             color='grey', linestyle='none', marker='s', markersize=3,
             alpha=.5,
@@ -484,7 +395,7 @@ def restore_shape_from_spectrum(
             background=[background[i] for i, mask in enumerate(mask) if not mask],
         )
         x, y = grid.x, grid.y
-        plt.plot(
+        ax.plot(
             x, y,
             color='red', linestyle='none', marker='s', markersize=3,
             alpha=1,
@@ -492,43 +403,28 @@ def restore_shape_from_spectrum(
 
         x = np.linspace(min(grid.x), max(grid.x), 1000)
         y_hat = shape(x, 0, 1)
-        plt.plot(
+        ax.plot(
             x, y_hat,
             color='black', linestyle=':',
         )
 
         x, y = grid.x, grid.y
         y_hat = shape(x, 0, 1)
-        plt.plot(
+        ax.plot(
             x, y - y_hat,
             color='black', linestyle='none', marker='s', markersize=0.5,
         )
 
-        plt.text(
+        ax.text(
             0.05, 0.95,
             shape.get_content(sep='\n'),
-            transform=ax_mid.transAxes,
+            transform=ax.transAxes,
             ha='left', va='top',
         )
 
-        plt.xlim([-10, +10])
-        plt.xlabel(r'$number$')
-        plt.ylabel(r'$I, \%$')
-        plt.grid(color='grey', linestyle=':')
-
-        plt.sca(ax_right)
-
-        y = 100*error
-        plt.plot(y)
-        plt.plot(
-            np.arange(n_blinks)[~mask], y[~mask],
-            color='red', linestyle='none', marker='.',
-        )
-
-        plt.xlabel(r'$index$')
-        plt.ylabel(r'$error, \%$')
-        plt.grid(color='grey', linestyle=':')
-
-        plt.show()
+        ax.set_xlim([-10, +10])
+        ax.set_xlabel(r'$number$')
+        ax.set_ylabel(r'$I$ [$\%$]')
+        ax.grid(color='grey', linestyle=':')
 
     return shape

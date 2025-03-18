@@ -88,10 +88,6 @@ class AbstractSpectrum(ABC):
 
         return self._clipped
 
-    @abstractmethod
-    def show(self, canvas, yscale):
-        pass
-
     def __repr__(self) -> str:
         if self.intensity.ndim == 1:
             n_times, n_numbers = 1, self.shape[-1]
@@ -122,36 +118,6 @@ class Spectrum(AbstractSpectrum):
             clipped=clipped,
             detector=detector,
         )
-
-    def show(
-        self,
-        ax: plt.Axes | None = None,
-        figsize: tuple[float, float] = (6, 4),
-        yscale: Percent | Electron = Percent,
-    ) -> None:
-        is_filling = ax is not None
-
-        if not is_filling:
-            fig, ax = plt.subplots(figsize=figsize, tight_layout=True)
-
-        x = self.wavelength
-        y = self.intensity
-        ax.step(
-            x, y,
-            where='mid',
-            color='black',
-        )
-
-        ax.set_xlabel(r'$\lambda$ [$nm$]')
-        ax.set_ylabel(
-            r'$I$ [$\bar{e}$]' if yscale is Electron else r'$I$ [$\%$]',
-        )
-        ax.grid(
-            color='grey', linestyle=':',
-        )
-
-        if not is_filling:
-            plt.show()
 
     def dump(self, filepath: str) -> None:
 

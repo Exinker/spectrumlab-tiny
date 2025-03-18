@@ -6,7 +6,7 @@ import numpy as np
 from spectrumlab.emulations.noise import Noise
 from spectrumlab.peaks.utils import find_maxima, find_minima, find_pairs
 from spectrumlab.spectra import Spectrum
-from spectrumlab.types import Number, U
+from spectrumlab.types import Array, Number, U
 
 
 @dataclass(frozen=False, slots=False)
@@ -19,6 +19,10 @@ class Peak:
     deviation: U
 
     except_edges: bool = field(default=False)
+
+    @property
+    def number(self) -> Array[Number]:
+        return np.arange(*self.minima)
 
     def __repr__(self) -> str:
         cls = self.__class__
@@ -43,7 +47,11 @@ class DraftPeakConfig:
     slope_max: float = field(default=1)  # if the slope is more, this is a tail of a peak
 
 
-def draft_blinks(spectrum: Spectrum, noise: Noise, config: DraftPeakConfig | None = None, show: bool = False) -> tuple[Peak]:
+def draft_blinks(
+    spectrum: Spectrum,
+    noise: Noise,
+    config: DraftPeakConfig | None = None,
+) -> tuple[Peak]:
     """Draft blinks from the spectrum.
 
     Author: Vaschenko Pavel
@@ -115,31 +123,6 @@ def draft_blinks(spectrum: Spectrum, noise: Noise, config: DraftPeakConfig | Non
         )
 
         peaks.append(peak)
-
-    # show
-    if show:
-        fig, ax = plt.subplots(figsize=(6, 4), tight_layout=True)
-
-        x, y = spectrum.wavelength, spectrum.intensity
-        ax.step(
-            x, y,
-            where='mid',
-            color='black',
-        )
-
-        for peak in peaks:
-            x, y = spectrum.wavelength[peak.number], spectrum.intensity[peak.number]
-            ax.step(
-                x, y,
-                where='mid',
-                color='red',
-            )
-
-        plt.xlabel(r'$\lambda, nm$')
-        plt.ylabel(r'')
-        plt.grid(color='grey', linestyle=':')
-
-        plt.show()
 
     # return peaks
     return tuple(peaks)
