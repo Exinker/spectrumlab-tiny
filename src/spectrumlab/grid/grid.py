@@ -12,10 +12,17 @@ if TYPE_CHECKING:
 
 class _FactoryBatch:
 
-    def __init__(self, spectrum: Spectrum):
+    def __init__(
+        self,
+        spectrum: Spectrum,
+    ):
         self.spectrum = spectrum
 
-    def create_from_blink(self, blink: 'Peak', threshold: float) -> '_Batch':
+    def create_from_blink(
+        self,
+        blink: 'Peak',
+        threshold: float,
+    ) -> '_Batch':
         lb, ub = blink.minima
 
         is_clipped = self.spectrum.clipped[lb:ub]
@@ -29,6 +36,7 @@ class _FactoryBatch:
 
 
 class _Batch:
+
     factory = _FactoryBatch
 
     def __init__(self, x: Array[T], y: Array[U]):
@@ -52,7 +60,12 @@ class FactoryGrid:
         """Get a grid from sequence of blinks from spectrum."""
 
         batches = tuple(
-            _Batch.factory(spectrum=self.spectrum).create_from_blink(blink=blink, threshold=threshold)
+            _Batch.factory(
+                spectrum=self.spectrum,
+            ).create_from_blink(
+                blink=blink,
+                threshold=threshold,
+            )
             for blink in blinks
         )
 
@@ -63,7 +76,13 @@ class FactoryGrid:
             background=background,
         )
 
-    def _create(self, batches: Sequence[_Batch], offset: Array[T] | None = None, scale: Array[float] | None = None, background: Array[U] | None = None) -> 'Grid':
+    def _create(
+        self,
+        batches: Sequence[_Batch],
+        offset: Array[T] | None = None,
+        scale: Array[float] | None = None,
+        background: Array[U] | None = None,
+    ) -> 'Grid':
         """Get a grid from sequence of batches."""
         n_batches = len(batches)
 
@@ -79,17 +98,13 @@ class FactoryGrid:
             background = np.full(n_batches, 0)
         assert len(background) == n_batches, f'len of `background` have to be equal of `n_batches`: {n_batches}'
 
-        #
         x, y = [], []
         for t, batch in enumerate(batches):
             x.extend(batch.x - offset[t])
             y.extend((batch.y - background[t]) / scale[t])
-
         x, y = np.array(x).squeeze(), np.array(y).squeeze()
 
         index = np.argsort(x)
-
-        #
         return Grid(
             x=x[index],
             y=y[index],
@@ -97,12 +112,17 @@ class FactoryGrid:
 
 
 class Grid:
+
     factory = FactoryGrid
 
-    def __init__(self, x: Array[T], y: Array[float] | None = None, units: T | None = None):
+    def __init__(
+        self,
+        x: Array[T],
+        y: Array[float] | None = None,
+        units: T | None = None,
+    ):
         assert len(x) == len(y)
 
-        #
         self._x = x
         self._y = y
         self._units = units

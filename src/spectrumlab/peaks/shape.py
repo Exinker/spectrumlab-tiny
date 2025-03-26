@@ -171,10 +171,7 @@ class Shape:
         ])
 
     @classmethod
-    def from_grid(
-        cls,
-        grid: Grid,
-    ) -> 'Shape':
+    def from_grid(cls, grid: Grid) -> 'Shape':
 
         def _loss(grid: Grid, params: Sequence[float]) -> float:
             shape_variables, scope_variables = AssociatedShapeVariables.parse_params(
@@ -209,11 +206,23 @@ class Shape:
         return shape
 
     @overload
-    def __call__(self, x: Number, position: Number, intensity: float, background: float = 0) -> U: ...
+    def __call__(
+        self,
+        x: Number,
+        position: Number,
+        intensity: float,
+        background: float = 0,
+    ) -> U: ...
     @overload
-    def __call__(self, x: Array[Number], position: Number, intensity: float, background: float = 0) -> Array[U]: ...
+    def __call__(
+        self,
+        x: Array[Number],
+        position: Number,
+        intensity: float,
+        background: float = 0,
+    ) -> Array[U]: ...
     def __call__(self, x, position, intensity, background=0):
-        return background + intensity*self.f(x - position)
+        return background + intensity * self.f(x - position)
 
     def __repr__(self) -> str:
         cls = self.__class__
@@ -258,7 +267,11 @@ def approx_grid(
 # --------        restore shape        --------
 @dataclass
 class RestoreShapeConfig:
+
     default_shape: Shape = field(default=Shape(2, 0, .1))
+
+    n_peaks_min_sorted_by_width: int | None = field(default=20)
+    width_max: float | None = field(default=3.5)
 
     error_max: float = field(default=.01)
     error_mean: float = field(default=.001)
@@ -313,6 +326,7 @@ def restore_shape_from_spectrum(
     # calculate shape
     n_blinks = len(blinks)
 
+    width = np.zeros(n_blinks)
     offset = np.zeros(n_blinks)
     scale = np.zeros(n_blinks)
     background = np.zeros(n_blinks)
@@ -320,15 +334,28 @@ def restore_shape_from_spectrum(
     mask = np.full(n_blinks, False)
     for i, blink in enumerate(blinks):
         lb, ub = blink.minima
-        grid = Grid(spectrum.number[lb:ub], spectrum.intensity[lb:ub], units=Number)
+        grid = Grid(
+            x=spectrum.number[lb:ub],
+            y=spectrum.intensity[lb:ub],
+            units=Number,
+        )
+        shape = Shape.from_grid(
+            grid=grid,
+        )
+        width[i] = shape.width
 
         scope_variables, error[i] = approx_grid(
             grid=grid,
-            shape=Shape.from_grid(
-                grid=grid,
-            ),
+            shape=shape,
         )
         offset[i], scale[i], background[i] = scope_variables.value
+
+    LOGGER.debug('Peaks total: %s', n_blinks - sum(mask))
+    if restore_shape_config.n_peaks_min_sorted_by_width:
+        index = np.argsort(width)[restore_shape_config.n_peaks_min_sorted_by_width:]
+        mask[index] = True
+    LOGGER.debug('Peaks width: %s', width)
+    LOGGER.debug('Peaks total: %s', n_blinks - sum(mask))
 
     while True:
 
@@ -373,10 +400,12 @@ def restore_shape_from_spectrum(
         worst_blinks_index = index[np.argsort(np.abs(error[index]))][-step_size:]
         mask[worst_blinks_index] = True
 
-    LOGGER.debug('Peaks index: %s', error[index])
+    LOGGER.debug('Peaks width: %s', width[index])
+    LOGGER.debug('Peaks error: %s', error[index])
     LOGGER.debug('Peaks offset: %s', offset[index])
     LOGGER.debug('Peaks scale: %s', scale[index])
     LOGGER.debug('Peaks background: %s', background[index])
+    LOGGER.debug('Peaks total: %s', n_blinks - sum(mask))
 
     # show on figures
     figure = FIGURE.get()
@@ -409,7 +438,12 @@ def restore_shape_from_spectrum(
 
                 n_points = 5 * (blink.minima[1] - blink.minima[0] + 1)
                 x = np.linspace(spectrum.wavelength[blink.minima[0]], spectrum.wavelength[blink.minima[1]], n_points)
-                y_hat = shape(np.linspace(spectrum.number[blink.minima[0]], spectrum.number[blink.minima[1]], n_points),  offset[i], scale[i], background[i])
+                y_hat = shape(
+                    x=np.linspace(spectrum.number[blink.minima[0]], spectrum.number[blink.minima[1]], n_points),
+                    position=offset[i],
+                    intensity=scale[i],
+                    background=background[i],
+                )
                 ax.plot(
                     x, y_hat,
                     color='black', linestyle=':', linewidth=1,
