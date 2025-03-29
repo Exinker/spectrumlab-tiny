@@ -16,7 +16,7 @@ class Shape:
         asymmetry: float,
         ratio: float,
         rx: Number = 50,
-        dx: Number = 1e-2,
+        dx: Number = 1e-1,
     ) -> None:
         """Voigt peak's shape. A convolution of apparatus shape and aperture shape (rectangular) of a detector.
 

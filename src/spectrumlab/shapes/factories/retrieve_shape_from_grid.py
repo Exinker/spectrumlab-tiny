@@ -15,9 +15,22 @@ def retrieve_shape_from_grid(
     grid: Grid,
 ) -> Shape:
 
+    def _loss(grid: Grid, params: Sequence[float]) -> float:
+
+        shape_params, scope_params = FullParams.parse(
+            grid=grid,
+            params=params,
+        )
+        shape = Shape(**shape_params, rx=20, dx=.5)
+
+        return mse(
+            y=grid.y,
+            y_hat=shape(x=grid.x, **scope_params),
+        )
+
     params = FullParams(grid=grid)
     res = optimize.minimize(
-        partial(loss, grid),
+        partial(_loss, grid),
         params.initial,
         # method='SLSQP',
         bounds=params.bounds,
@@ -29,19 +42,5 @@ def retrieve_shape_from_grid(
         params=res['x'],
     )
 
-    shape = Shape(**shape_params)
+    shape = Shape(**shape_params, rx=20, dx=.5)
     return shape
-
-
-def loss(grid: Grid, params: Sequence[float]) -> float:
-
-    shape_params, scope_params = FullParams.parse(
-        grid=grid,
-        params=params,
-    )
-    shape = Shape(**shape_params)
-
-    return mse(
-        y=grid.y,
-        y_hat=shape(x=grid.x, **scope_params),
-    )

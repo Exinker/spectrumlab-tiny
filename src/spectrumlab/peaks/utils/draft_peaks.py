@@ -3,7 +3,7 @@ from typing import Iterator, Self, Sequence
 import numpy as np
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from scipy import signal
 
 from spectrumlab.peaks.peak import Peak
 from spectrumlab.spectra import Spectrum
@@ -16,12 +16,14 @@ class DraftPeaksConfig(BaseSettings):
     n_counts_max: int = Field(100, ge=1, le=500, alias='DRAFT_PEAK_N_COUNTS_MAX')
 
     except_clipped_peak: bool = Field(True, alias='DRAFT_PEAK_EXCEPT_CLIPPED_PEAK')
+    except_wide_peak: bool = Field(False, alias='DRAFT_PEAK_EXCEPT_WIDE_PEAK')
     except_sloped_peak: bool = Field(True, alias='DRAFT_PEAK_EXCEPT_SLOPED_PEAK')
     except_edges: bool = Field(False, alias='DRAFT_PEAK_EXCEPT_EDGES')
 
+    amplitude_min: float = Field(0, ge=0, le=1e+3, alias='DRAFT_PEAK_AMPLITUDE_MIN')
+    width_max: float = Field(3.5, ge=1, le=10, alias='DRAFT_PEAK_WIDTH_MAX')
     slope_max: float = Field(.25, ge=0, le=1, alias='DRAFT_PEAK_SLOPE_MAX')
 
-    amplitude_min: float = Field(0, ge=0, le=1e+3, alias='DRAFT_PEAK_AMPLITUDE_MIN')
     noise_level: int = Field(10, ge=1, le=100, alias='DRAFT_PEAK_NOISE_LEVEL')
 
     model_config = SettingsConfigDict(
@@ -57,9 +59,12 @@ def draft_peaks(
         minima=minima,
     )
 
+    # find width
+    width, *_ = signal.peak_widths(spectrum.intensity, maxima)
+
     # draft peaks
     peaks = []
-    for maximum, pair in zip(maxima, pairs):
+    for i, (maximum, pair) in enumerate(zip(maxima, pairs)):
         left, right = pair  # left and right index of peak
 
         # correct maxima / TODO: check it!
@@ -68,6 +73,11 @@ def draft_peaks(
             index = index[spectrum.clipped[index]]
 
             maxima = np.mean(index).astype(int).item()
+
+        # check peaks's width
+        if config.except_wide_peak:
+            if width[i] > config.width_max:
+                continue
 
         # check n_counts
         n_counts = right - left + 1
@@ -78,7 +88,7 @@ def draft_peaks(
         if n_counts > config.n_counts_max:
             continue
 
-        # check blink's amplitude
+        # check peaks's amplitude
         _amplitude = spectrum.intensity[maximum] - (spectrum.intensity[left] + spectrum.intensity[right])/2  # от среднего значения на границах до максимума
         _deviation = (spectrum.deviation[maximum]**2 + .25*spectrum.deviation[left]**2 + .25*spectrum.deviation[right]**2)**0.5
 
@@ -93,7 +103,7 @@ def draft_peaks(
             if any(spectrum.clipped[left:right+1]):
                 continue
 
-        # check blink's slope
+        # check peaks's slope
         if config.except_sloped_peak:
             _slope = abs(spectrum.intensity[left] - spectrum.intensity[right]) / _amplitude
 

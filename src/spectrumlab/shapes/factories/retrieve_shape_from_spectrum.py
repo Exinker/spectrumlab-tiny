@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from functools import partial
 
 import numpy as np
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from scipy import optimize
 
@@ -14,10 +14,8 @@ from spectrumlab.peaks import Peak
 from spectrumlab.shapes.factories.retrieve_shape_from_grid import (
     retrieve_shape_from_grid,
 )
-from spectrumlab.shapes.factories.utils.scope_params import (
+from spectrumlab.shapes.factories.utils import (
     ScopeParams,
-)
-from spectrumlab.shapes.factories.utils.shape_params import (
     ShapeParams,
 )
 from spectrumlab.shapes.shape import Shape
@@ -31,7 +29,6 @@ warnings.filterwarnings('ignore')
 
 LOGGER = logging.getLogger('spectrumlab')
 FIGURES = contextvars.ContextVar('FIGURES', default=None)
-FIGURE = contextvars.ContextVar('FIGURE', default=None)
 
 DEFAULT_SHAPE = Shape(width=2, asymmetry=0, ratio=.1)
 
@@ -41,6 +38,7 @@ class RetrieveShapeConfig(BaseSettings):
     default_shape: Shape = Field(None, alias='RETRIEVE_SHAPE_DEFAULT')
     error_max: float = Field(default=.001, alias='RETRIEVE_SHAPE_ERROR_MAX')
     error_mean: float = Field(default=.0001, alias='RETRIEVE_SHAPE_ERROR_MEAN')
+    n_peaks_sorted_by_width: int | None = Field(default=None, alias='RETRIEVE_SHAPE_N_PEAKS_SORTED_BY_WIDTH')
     n_peaks_min: int = Field(default=10, alias='RETRIEVE_SHAPE_N_PEAKS_MIN')
 
     model_config = SettingsConfigDict(
@@ -63,18 +61,32 @@ class RetrieveShapeConfig(BaseSettings):
             shape = DEFAULT_SHAPE
         return shape
 
+    @model_validator(mode='after')
+    def validate(self) -> None:
+        assert self.n_peaks_sorted_by_width >= self.n_peaks_min
+
 
 def retrieve_shape_from_spectrum(
     spectrum: Spectrum,
     peaks: Sequence[Peak],
+    n: int,
     restore_shape_config: RetrieveShapeConfig | None = None,
 ) -> Shape:
 
     restore_shape_config = restore_shape_config or RetrieveShapeConfig()
 
+    # setup figure
+    figures = FIGURES.get()
+    if figures:
+        figure = figures[n]
+    else:
+        figure = None
+
     # calculate shape
     n_peaks = len(peaks)
+    LOGGER.debug('detector %02d - peaks total: %s', n, n_peaks)
 
+    width = np.zeros(n_peaks)
     offset = np.zeros(n_peaks)
     scale = np.zeros(n_peaks)
     background = np.zeros(n_peaks)
@@ -87,12 +99,19 @@ def retrieve_shape_from_spectrum(
         shape = retrieve_shape_from_grid(
             grid=grid,
         )
+        width[i] = shape.width
 
         scope_params, error[i] = _approximate_grid(
             grid=grid,
             shape=shape,
         )
         offset[i], scale[i], background[i] = scope_params.value
+
+    if restore_shape_config.n_peaks_sorted_by_width:
+        index = np.argsort(width)[restore_shape_config.n_peaks_sorted_by_width:]
+        mask[index] = True
+
+        LOGGER.debug('detector %02d - peaks stayed: %s', n, n_peaks - sum(mask))
 
     while True:
 
@@ -120,14 +139,14 @@ def retrieve_shape_from_spectrum(
         index, = np.where(~mask)
 
         if np.mean(np.abs(error[index])) <= restore_shape_config.error_mean:
-            LOGGER.debug('Breakpoint: error_mean (%s peaks)', len(index))
+            LOGGER.debug('detector %02d - breakpoint: error_mean (%s peaks)', n, len(index))
             break
         if np.max(np.abs(error[index])) <= restore_shape_config.error_max:
-            LOGGER.debug('Breakpoint: error_max (%s peaks)', len(index))
+            LOGGER.debug('detector %02d - breakpoint: error_max (%s peaks)', n, len(index))
             break
 
         if len(index) <= restore_shape_config.n_peaks_min:
-            LOGGER.debug('Breakpoint: n_peaks_min (%s peaks)', len(index))
+            LOGGER.debug('detector %02d - breakpoint: n_peaks_min (%s peaks)', n, len(index))
             break
 
         # next step
@@ -137,13 +156,13 @@ def retrieve_shape_from_spectrum(
         worst_peaks_index = index[np.argsort(np.abs(error[index]))][-step_size:]
         mask[worst_peaks_index] = True
 
-    LOGGER.debug('Peaks index: %s', error[index])
-    LOGGER.debug('Peaks offset: %s', offset[index])
-    LOGGER.debug('Peaks scale: %s', scale[index])
-    LOGGER.debug('Peaks background: %s', background[index])
+    LOGGER.debug('detector %02d - peaks stayed: %s', n, n_peaks - sum(mask))
+    LOGGER.debug('detector %02d - peaks index: %s', n, error[index])
+    LOGGER.debug('detector %02d - peaks offset: %s', n, offset[index])
+    LOGGER.debug('detector %02d - peaks scale: %s', n, scale[index])
+    LOGGER.debug('detector %02d - peaks background: %s', n, background[index])
 
-    # show on figures
-    figure = FIGURE.get()
+    # show figure
     if figure:
         if figure['spectrum']:
             ax = figure['spectrum'].gca()
