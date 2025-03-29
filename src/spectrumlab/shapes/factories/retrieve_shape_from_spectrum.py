@@ -1,8 +1,9 @@
 import contextvars
 import logging
 import warnings
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from functools import partial
+from operator import itemgetter
 
 import numpy as np
 from pydantic import Field, field_validator, model_validator
@@ -20,7 +21,7 @@ from spectrumlab.shapes.factories.utils import (
 )
 from spectrumlab.shapes.shape import Shape
 from spectrumlab.spectra import Spectrum
-from spectrumlab.types import Number
+from spectrumlab.types import Array, Number
 from spectrumlab.utils import mse
 
 
@@ -38,7 +39,7 @@ class RetrieveShapeConfig(BaseSettings):
     default_shape: Shape = Field(None, alias='RETRIEVE_SHAPE_DEFAULT')
     error_max: float = Field(default=.001, alias='RETRIEVE_SHAPE_ERROR_MAX')
     error_mean: float = Field(default=.0001, alias='RETRIEVE_SHAPE_ERROR_MEAN')
-    n_peaks_sorted_by_width: int | None = Field(default=None, alias='RETRIEVE_SHAPE_N_PEAKS_SORTED_BY_WIDTH')
+    n_peaks_filtrated_by_width: int | None = Field(default=None, alias='RETRIEVE_SHAPE_N_PEAKS_FILTRATED_BY_WIDTH')
     n_peaks_min: int = Field(default=10, alias='RETRIEVE_SHAPE_N_PEAKS_MIN')
 
     model_config = SettingsConfigDict(
@@ -63,17 +64,19 @@ class RetrieveShapeConfig(BaseSettings):
 
     @model_validator(mode='after')
     def validate(self) -> None:
-        assert self.n_peaks_sorted_by_width >= self.n_peaks_min
+
+        if self.n_peaks_filtrated_by_width:
+            assert self.n_peaks_filtrated_by_width >= self.n_peaks_min
 
 
 def retrieve_shape_from_spectrum(
     spectrum: Spectrum,
     peaks: Sequence[Peak],
     n: int,
-    restore_shape_config: RetrieveShapeConfig | None = None,
+    config: RetrieveShapeConfig | None = None,
 ) -> Shape:
 
-    restore_shape_config = restore_shape_config or RetrieveShapeConfig()
+    config = config or RetrieveShapeConfig()
 
     # setup figure
     figures = FIGURES.get()
@@ -84,7 +87,7 @@ def retrieve_shape_from_spectrum(
 
     # calculate shape
     n_peaks = len(peaks)
-    LOGGER.debug('detector %02d - peaks total: %s', n, n_peaks)
+    LOGGER.debug('detector %02d - peaks total: %s', n+1, n_peaks)
 
     width = np.zeros(n_peaks)
     offset = np.zeros(n_peaks)
@@ -107,60 +110,66 @@ def retrieve_shape_from_spectrum(
         )
         offset[i], scale[i], background[i] = scope_params.value
 
-    if restore_shape_config.n_peaks_sorted_by_width:
-        index = np.argsort(width)[restore_shape_config.n_peaks_sorted_by_width:]
+    if (n_peaks > 0) and config.n_peaks_filtrated_by_width:
+        index = np.argsort(width)[config.n_peaks_filtrated_by_width:]
         mask[index] = True
 
-        LOGGER.debug('detector %02d - peaks stayed: %s', n, n_peaks - sum(mask))
+        LOGGER.debug('detector %02d - peaks stayed: %s', n+1, n_peaks - sum(mask))
 
-    while True:
+    try:
+        while True:
 
-        # update shape
-        grid = Grid.factory(spectrum=spectrum).create_from_peaks(
-            peaks=[peaks[i] for i, is_masked in enumerate(mask) if not is_masked],
-            offset=[offset[i] for i, is_masked in enumerate(mask) if not is_masked],
-            scale=[scale[i] for i, is_masked in enumerate(mask) if not is_masked],
-            background=[background[i] for i, is_masked in enumerate(mask) if not is_masked],
-        )
-        shape = _retrieve_shape(
-            grid=grid,
-        )
-
-        # update offset, scale, background
-        for i, peak in enumerate(peaks):
-            lb, ub = peak.minima
-            scope_params, error[i] = _approximate_grid(
-                grid=Grid(spectrum.number[lb:ub], spectrum.intensity[lb:ub], units=Number),
-                shape=shape,
+            # update shape
+            select = itemgetter(*np.flatnonzero(~mask).tolist())
+            grid = Grid.factory(spectrum=spectrum).create_from_peaks(
+                peaks=select(peaks),
+                offset=select(offset),
+                scale=select(scale),
+                background=select(background),
             )
-            offset[i], scale[i], background[i] = scope_params.value
+            shape = _retrieve_shape(
+                grid=grid,
+            )
 
-        # breakpoints
-        index, = np.where(~mask)
+            # update offset, scale, background
+            for i, peak in enumerate(peaks):
+                lb, ub = peak.minima
+                scope_params, error[i] = _approximate_grid(
+                    grid=Grid(spectrum.number[lb:ub], spectrum.intensity[lb:ub], units=Number),
+                    shape=shape,
+                )
+                offset[i], scale[i], background[i] = scope_params.value
 
-        if np.mean(np.abs(error[index])) <= restore_shape_config.error_mean:
-            LOGGER.debug('detector %02d - breakpoint: error_mean (%s peaks)', n, len(index))
-            break
-        if np.max(np.abs(error[index])) <= restore_shape_config.error_max:
-            LOGGER.debug('detector %02d - breakpoint: error_max (%s peaks)', n, len(index))
-            break
+            # breakpoints
+            index, = np.where(~mask)
 
-        if len(index) <= restore_shape_config.n_peaks_min:
-            LOGGER.debug('detector %02d - breakpoint: n_peaks_min (%s peaks)', n, len(index))
-            break
+            if np.mean(np.abs(error[index])) <= config.error_mean:
+                LOGGER.debug('detector %02d - breakpoint: error_mean (%s peaks)', n+1, len(index))
+                break
+            if np.max(np.abs(error[index])) <= config.error_max:
+                LOGGER.debug('detector %02d - breakpoint: error_max (%s peaks)', n+1, len(index))
+                break
 
-        # next step
-        index, = np.where(~mask)
+            if len(index) <= config.n_peaks_min:
+                LOGGER.debug('detector %02d - breakpoint: n_peaks_min (%s peaks)', n+1, len(index))
+                break
 
-        step_size = 1
-        worst_peaks_index = index[np.argsort(np.abs(error[index]))][-step_size:]
-        mask[worst_peaks_index] = True
+            # next step
+            index, = np.where(~mask)
 
-    LOGGER.debug('detector %02d - peaks stayed: %s', n, n_peaks - sum(mask))
-    LOGGER.debug('detector %02d - peaks index: %s', n, error[index])
-    LOGGER.debug('detector %02d - peaks offset: %s', n, offset[index])
-    LOGGER.debug('detector %02d - peaks scale: %s', n, scale[index])
-    LOGGER.debug('detector %02d - peaks background: %s', n, background[index])
+            step_size = 1
+            worst_peaks_index = index[np.argsort(np.abs(error[index]))][-step_size:]
+            mask[worst_peaks_index] = True
+
+    except Exception:
+        shape = config.default_shape
+
+    else:
+        LOGGER.debug('detector %02d - peaks stayed: %s', n+1, n_peaks - sum(mask))
+        LOGGER.debug('detector %02d - peaks index: %s', n+1, error[index])
+        LOGGER.debug('detector %02d - peaks offset: %s', n+1, offset[index])
+        LOGGER.debug('detector %02d - peaks scale: %s', n+1, scale[index])
+        LOGGER.debug('detector %02d - peaks background: %s', n+1, background[index])
 
     # show figure
     if figure:
@@ -173,20 +182,26 @@ def retrieve_shape_from_spectrum(
             ax.step(
                 x, y,
                 where='mid',
-                color='black',
+                color='black', linestyle='-', linewidth=.5,
             )
 
-            for i, (peak, is_masked) in enumerate(zip(peaks, mask)):
-                x, y = spectrum.wavelength[peak.number], spectrum.intensity[peak.number]
-                color = {
-                    False: 'red',
-                    True: 'grey',
-                }[is_masked]
-
+            for index in split_by_clipped(spectrum.clipped):
+                x = spectrum.wavelength[index]
+                y = spectrum.intensity[index]
                 ax.step(
                     x, y,
                     where='mid',
-                    color=color,
+                    color='red', linestyle='-', linewidth=.5,
+                    alpha=1,
+                )
+
+            for i, peak in enumerate(peaks):
+
+                x, y = spectrum.wavelength[peak.number], spectrum.intensity[peak.number]
+                ax.step(
+                    x, y,
+                    where='mid',
+                    color={False: 'red', True: 'grey'}[mask[i]],
                     alpha=1,
                 )
 
@@ -221,44 +236,48 @@ def retrieve_shape_from_spectrum(
             ax = figure['shape'].gca()
             ax.clear()
 
-            grid = Grid.factory(spectrum=spectrum).create_from_peaks(
-                peaks=[peaks[i] for i, mask in enumerate(mask) if mask],
-                offset=[offset[i] for i, mask in enumerate(mask) if mask],
-                scale=[scale[i] for i, mask in enumerate(mask) if mask],
-                background=[background[i] for i, mask in enumerate(mask) if mask],
-            )
-            x, y = grid.x, grid.y
-            ax.plot(
-                x, y,
-                color='grey', linestyle='none', marker='s', markersize=3,
-                alpha=.5,
-            )
+            if (n_peaks > 0) and (sum(mask) > 0):
+                select = itemgetter(*np.flatnonzero(mask).tolist())
+                grid = Grid.factory(spectrum=spectrum).create_from_peaks(
+                    peaks=select(peaks),
+                    offset=select(offset),
+                    scale=select(scale),
+                    background=select(background),
+                )
+                x, y = grid.x, grid.y
+                ax.plot(
+                    x, y,
+                    color='grey', linestyle='none', marker='s', markersize=3,
+                    alpha=.5,
+                )
 
-            grid = Grid.factory(spectrum=spectrum).create_from_peaks(
-                peaks=[peaks[i] for i, mask in enumerate(mask) if not mask],
-                offset=[offset[i] for i, mask in enumerate(mask) if not mask],
-                scale=[scale[i] for i, mask in enumerate(mask) if not mask],
-                background=[background[i] for i, mask in enumerate(mask) if not mask],
-            )
-            x, y = grid.x, grid.y
-            ax.plot(
-                x, y,
-                color='red', linestyle='none', marker='s', markersize=3,
-                alpha=1,
-            )
+            if (n_peaks > 0) and (sum(~mask) > 0):
+                select = itemgetter(*np.flatnonzero(~mask).tolist())
+                grid = Grid.factory(spectrum=spectrum).create_from_peaks(
+                    peaks=select(peaks),
+                    offset=select(offset),
+                    scale=select(scale),
+                    background=select(background),
+                )
+                x, y = grid.x, grid.y
+                ax.plot(
+                    x, y,
+                    color='red', linestyle='none', marker='s', markersize=3,
+                    alpha=1,
+                )
 
-            x = np.linspace(min(grid.x), max(grid.x), 1000)
+                x, y = grid.x, grid.y
+                y_hat = shape(x, 0, 1)
+                ax.plot(
+                    x, y - y_hat,
+                    color='black', linestyle='none', marker='s', markersize=0.5,
+                )
+
+            x = np.arange(-shape.rx, +shape.rx, shape.dx)
             y_hat = shape(x, 0, 1)
             ax.plot(
                 x, y_hat,
                 color='black', linestyle=':',
-            )
-
-            x, y = grid.x, grid.y
-            y_hat = shape(x, 0, 1)
-            ax.plot(
-                x, y - y_hat,
-                color='black', linestyle='none', marker='s', markersize=0.5,
             )
 
             ax.text(
@@ -266,7 +285,7 @@ def retrieve_shape_from_spectrum(
                 shape.get_info(
                     sep='\n',
                     fields=dict(
-                        N=f'{len(peaks)} ({len(index)})',
+                        N=f'{len(peaks)} ({sum(~mask)})',
                     ),
                 ),
                 transform=ax.transAxes,
@@ -274,6 +293,8 @@ def retrieve_shape_from_spectrum(
             )
 
             ax.set_xlim([-10, +10])
+            ax.set_ylim([-.05, +.55])
+
             ax.set_xlabel(r'$number$')
             ax.set_ylabel(r'$I$ [$\%$]')
             ax.grid(color='grey', linestyle=':')
@@ -338,3 +359,18 @@ def _approximate_grid(
     error = mse(y, y_hat) / scope_params['intensity']
 
     return scope_params, error
+
+
+def split_by_clipped(
+    __clipped: Array[bool],
+) -> Iterable[Array[Number]]:
+
+    index = []
+    for i in np.where(__clipped)[0].tolist():
+        index.append(i)
+
+        if (len(index) > 1) and (index[-1] - index[-2] > 1):
+            chunk, index = index[:-1], index[-1:]
+            yield chunk
+
+    yield index
