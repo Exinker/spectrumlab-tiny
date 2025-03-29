@@ -1,14 +1,17 @@
 import numpy as np
 
-from spectrumlab.approximations.variables import AbstractVariables, Variable
 from spectrumlab.grid import Grid
+from spectrumlab.shapes.factories.utils.params import (
+    AbstractParams,
+    Param,
+)
 from spectrumlab.types import Number
 
 
 TOLL = 1e-10
 
 
-class ScopeVariables(AbstractVariables):
+class ScopeParams(AbstractParams):
 
     def __init__(
         self,
@@ -29,7 +32,7 @@ class ScopeVariables(AbstractVariables):
 def calculate_position(
     grid: Grid,
     position: Number | None = None,
-) -> Variable:
+) -> Param:
     initial = position or grid.x[np.argmax(grid.y)]
 
     if position is None:
@@ -37,13 +40,13 @@ def calculate_position(
     else:
         bounds = (initial-TOLL, initial+TOLL)
 
-    return Variable('position', initial, bounds, position)
+    return Param('position', initial, bounds, position)
 
 
 def calculate_intensity(
     grid: Grid,
     intensity: float | None = None,
-) -> Variable:
+) -> Param:
     initial = intensity or np.sum(grid.y)*(grid.x[-1] - grid.x[0])/len(grid)
 
     if intensity is None:
@@ -51,13 +54,13 @@ def calculate_intensity(
     else:
         bounds = (intensity-TOLL, intensity+TOLL)
 
-    return Variable('intensity', initial, bounds, intensity)
+    return Param('intensity', initial, bounds, intensity)
 
 
 def calculate_background(
     grid: Grid,
     background: float | None = None,
-) -> Variable:
+) -> Param:
     initial = background or min(grid.y)
 
     if background is None:
@@ -65,5 +68,4 @@ def calculate_background(
     else:
         bounds = (background-TOLL, background+TOLL)
 
-    return Variable('background', initial, bounds, background)
-
+    return Param('background', initial, bounds, background)

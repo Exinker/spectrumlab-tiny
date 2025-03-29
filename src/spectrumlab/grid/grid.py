@@ -15,8 +15,8 @@ class _FactoryBatch:
     def __init__(self, spectrum: Spectrum):
         self.spectrum = spectrum
 
-    def create_from_blink(self, blink: 'Peak', threshold: float) -> '_Batch':
-        lb, ub = blink.minima
+    def create_from_peak(self, peak: 'Peak', threshold: float) -> '_Batch':
+        lb, ub = peak.minima
 
         is_clipped = self.spectrum.clipped[lb:ub]
         is_snr_low = np.abs(self.spectrum.intensity[lb:ub]) / self.spectrum.deviation[lb:ub] < threshold
@@ -41,19 +41,19 @@ class FactoryGrid:
     def __init__(self, spectrum: Spectrum):
         self.spectrum = spectrum
 
-    def create_from_blinks(
+    def create_from_peaks(
         self,
-        blinks: Sequence['Peak'],
+        peaks: Sequence['Peak'],
         offset: Array[T] | None = None,
         scale: Array[float] | None = None,
         background: Array[float] | None = None,
         threshold: float = 0,
     ) -> 'Grid':
-        """Get a grid from sequence of blinks from spectrum."""
+        """Get a grid from sequence of peaks from spectrum."""
 
         batches = tuple(
-            _Batch.factory(spectrum=self.spectrum).create_from_blink(blink=blink, threshold=threshold)
-            for blink in blinks
+            _Batch.factory(spectrum=self.spectrum).create_from_peak(peak=peak, threshold=threshold)
+            for peak in peaks
         )
 
         return self._create(
@@ -99,10 +99,14 @@ class FactoryGrid:
 class Grid:
     factory = FactoryGrid
 
-    def __init__(self, x: Array[T], y: Array[float] | None = None, units: T | None = None):
+    def __init__(
+        self,
+        x: Array[T],
+        y: Array[float] | None = None,
+        units: T | None = None,
+    ) -> None:
         assert len(x) == len(y)
 
-        #
         self._x = x
         self._y = y
         self._units = units
