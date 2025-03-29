@@ -63,7 +63,9 @@ class RetrieveShapeConfig(BaseSettings):
 
     @model_validator(mode='after')
     def validate(self) -> None:
-        assert self.n_peaks_sorted_by_width >= self.n_peaks_min
+
+        if self.n_peaks_sorted_by_width:
+            assert self.n_peaks_sorted_by_width >= self.n_peaks_min
 
 
 def retrieve_shape_from_spectrum(
