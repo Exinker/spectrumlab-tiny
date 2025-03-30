@@ -4,17 +4,18 @@ from typing import Iterator
 
 
 @dataclass
-class Variable:
+class Param:
+
     name: str
     initial: float
     bounds: tuple[float, float]
     value: float | None
 
 
-class AbstractVariables(Mapping):
+class AbstractParams(Mapping):
     """Abstract variables type."""
 
-    def __init__(self, __items: Sequence[Variable]) -> None:
+    def __init__(self, __items: Sequence[Param]) -> None:
         self._items = {
             item.name: item
             for item in __items

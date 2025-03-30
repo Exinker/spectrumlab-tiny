@@ -3,7 +3,6 @@ import numpy as np
 from spectrumlab.types import Array
 
 
-# --------        calculate errors        --------
 def se(y: float | Array[float], y_hat: Array[float]) -> Array[float]:
     """Calculate squared error (SE) between true values $y$ and predicted values $\hat{y}$."""  # noqa: W605
 

@@ -1,17 +1,10 @@
-import pickle
-from abc import ABC
-from collections.abc import Mapping
-from typing import Any
-
 import numpy as np
 
-from spectrumlab import VERSION
-from spectrumlab.emulations.detectors import Detector
+from spectrumlab.detectors import Detector
 from spectrumlab.types import Array, NanoMeter, Number
 
 
-class AbstractSpectrum(ABC):
-    """Abstract type for any emitted or absorbed spectrum."""
+class Spectrum:
 
     def __init__(
         self,
@@ -22,6 +15,7 @@ class AbstractSpectrum(ABC):
         clipped: Array[bool] | None = None,
         detector: Detector | None = None,
     ) -> None:
+
         self.intensity = intensity
         self.detector = detector
 
@@ -95,66 +89,3 @@ class AbstractSpectrum(ABC):
 
         cls = self.__class__
         return f'{cls.__name__}(n_times: {n_times}, n_numbers: {n_numbers})'
-
-
-class Spectrum(AbstractSpectrum):
-    """Type for any emitted (or ordinary) spectrum."""
-
-    def __init__(
-        self,
-        intensity: Array[float],
-        wavelength: Array[NanoMeter] | None = None,
-        number: Array[Number] | None = None,
-        deviation: Array[float] | None = None,
-        clipped: Array[bool] | None = None,
-        detector: Detector | None = None,
-    ) -> None:
-        super().__init__(
-            intensity=intensity,
-            wavelength=wavelength,
-            number=number,
-            deviation=deviation,
-            clipped=clipped,
-            detector=detector,
-        )
-
-    def dump(self, filepath: str) -> None:
-
-        dat = self.dumps()
-        with open(filepath, 'wb') as file:
-            pickle.dump(dat, file)
-
-    def dumps(self) -> Mapping[str, Any]:
-
-        dat = dict(
-            version=VERSION,
-            intensity=pickle.dumps(self.intensity),
-            wavelength=pickle.dumps(self.wavelength),
-            number=pickle.dumps(self.number),
-            deviation=pickle.dumps(self.deviation),
-            clipped=pickle.dumps(self.clipped),
-            detector=self.detector.name,
-        )
-        return dat
-
-    @classmethod
-    def load(cls, filepath: str) -> 'Spectrum':
-
-        with open(filepath, 'rb') as file:
-            dat = pickle.load(file)
-
-        spectrum = cls.loads(dat)
-        return spectrum
-
-    @classmethod
-    def loads(cls, dat: Mapping[str, Any]) -> 'Spectrum':
-
-        spectrum = Spectrum(
-            intensity=pickle.loads(dat['intensity']),
-            wavelength=pickle.loads(dat['wavelength']),
-            number=pickle.loads(dat['number']),
-            deviation=pickle.loads(dat['deviation']),
-            clipped=pickle.loads(dat['clipped']),
-            detector=Detector[dat['detector']],
-        )
-        return spectrum
