@@ -1,9 +1,9 @@
 from collections.abc import Sequence
 
 from spectrumlab.grid import Grid
-from spectrumlab.shapes.factories.utils.params import AbstractParams
-from spectrumlab.shapes.factories.utils.scope_params import ScopeParams
-from spectrumlab.shapes.factories.utils.shape_params import ShapeParams
+from spectrumlab.shapes.retrieve_peak_shape.utils.params import AbstractParams
+from spectrumlab.shapes.retrieve_peak_shape.utils.scope_params import ScopeParams
+from spectrumlab.shapes.retrieve_peak_shape.utils.shape_params import ShapeParams
 
 
 class FullParams(AbstractParams):

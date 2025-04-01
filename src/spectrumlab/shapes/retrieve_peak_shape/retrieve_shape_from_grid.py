@@ -5,7 +5,7 @@ from scipy import optimize
 
 from spectrumlab.grid import Grid
 from spectrumlab.shapes import Shape
-from spectrumlab.shapes.factories.utils.full_params import (
+from spectrumlab.shapes.retrieve_peak_shape.utils import (
     FullParams,
 )
 from spectrumlab.utils import mse

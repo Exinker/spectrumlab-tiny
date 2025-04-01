@@ -1,4 +1,7 @@
-from spectrumlab.shapes.factories.utils.params import (
+from spectrumlab.shapes.retrieve_peak_shape.config import (
+    RETRIEVE_SHAPE_CONFIG as CONFIG,
+)
+from spectrumlab.shapes.retrieve_peak_shape.utils.params import (
     AbstractParams,
     Param,
 )
@@ -14,8 +17,8 @@ class ShapeParams(AbstractParams):
         ratio: float | None = None,
     ) -> None:
         super().__init__([
-            Param('width', 2.0, (0.1, 20), width),
-            Param('asymmetry', 0.0, (-0.5, +0.5), asymmetry),
+            Param('width', 2.0, (CONFIG.min_width, CONFIG.max_width), width),
+            Param('asymmetry', 0.0, (-CONFIG.max_asymmetry, +CONFIG.max_asymmetry), asymmetry),
             Param('ratio', 0.1, (0, 1), ratio),
         ])
 

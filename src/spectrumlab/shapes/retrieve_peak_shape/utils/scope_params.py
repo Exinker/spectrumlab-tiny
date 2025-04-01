@@ -1,7 +1,7 @@
 import numpy as np
 
 from spectrumlab.grid import Grid
-from spectrumlab.shapes.factories.utils.params import (
+from spectrumlab.shapes.retrieve_peak_shape.utils.params import (
     AbstractParams,
     Param,
 )
