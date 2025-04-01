@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from spectrumlab.types import Array, Number, U
+from spectrumlab.types import Array, Number
 
 
 @dataclass(frozen=False, slots=False)
@@ -10,8 +10,6 @@ class Peak:
 
     minima: tuple[Number, Number]
     maxima: tuple[Number]
-    amplitude: U
-    deviation: U
 
     except_edges: bool = field(default=False)
 
@@ -24,6 +22,6 @@ class Peak:
 
         content = '; '.join([
             f'minima: {self.minima}',
-            f'amplitude: {self.amplitude:.4f}',
+            f'maxima: {self.maxima}',
         ])
         return f'{cls.__name__}({content})'

@@ -1,5 +1,5 @@
 from .peak import Peak
-from .utils import (
+from .draft_peaks import (
     DraftPeaksConfig, draft_peaks,
 )
 
