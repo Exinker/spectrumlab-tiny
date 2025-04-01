@@ -1,47 +1,18 @@
-from typing import Iterator, Self, Sequence
+from typing import Iterator, Sequence
 
 import numpy as np
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from scipy import signal
 
+from spectrumlab.peaks.draft_peaks.config import (
+    DRAFT_PEAKS_CONFIG as CONFIG,
+)
 from spectrumlab.peaks.peak import Peak
 from spectrumlab.spectra import Spectrum
 from spectrumlab.types import Number, U
 
 
-class DraftPeaksConfig(BaseSettings):
-
-    n_counts_min: int = Field(10, ge=1, le=50, alias='DRAFT_PEAK_N_COUNTS_MIN')
-    n_counts_max: int = Field(100, ge=1, le=500, alias='DRAFT_PEAK_N_COUNTS_MAX')
-
-    except_clipped_peak: bool = Field(True, alias='DRAFT_PEAK_EXCEPT_CLIPPED_PEAK')
-    except_wide_peak: bool = Field(False, alias='DRAFT_PEAK_EXCEPT_WIDE_PEAK')
-    except_sloped_peak: bool = Field(True, alias='DRAFT_PEAK_EXCEPT_SLOPED_PEAK')
-    except_edges: bool = Field(False, alias='DRAFT_PEAK_EXCEPT_EDGES')
-
-    amplitude_min: float = Field(0, ge=0, le=1e+3, alias='DRAFT_PEAK_AMPLITUDE_MIN')
-    width_max: float = Field(3.5, ge=1, le=10, alias='DRAFT_PEAK_WIDTH_MAX')
-    slope_max: float = Field(.25, ge=0, le=1, alias='DRAFT_PEAK_SLOPE_MAX')
-
-    noise_level: int = Field(10, ge=1, le=100, alias='DRAFT_PEAK_NOISE_LEVEL')
-
-    model_config = SettingsConfigDict(
-        env_file='.env',
-        env_file_encoding='utf-8',
-        extra='ignore',
-    )
-
-    @model_validator(mode='after')
-    def validate(self) -> Self:
-        assert self.n_counts_min < self.n_counts_max
-
-        return self
-
-
 def draft_peaks(
     spectrum: Spectrum,
-    config: DraftPeaksConfig | None = None,
 ) -> tuple[Peak, ...]:
     """Draft peaks from the spectrum.
 
@@ -49,7 +20,6 @@ def draft_peaks(
      Email: vaschenko@vmk.ru
       Date: 2016.04.09
     """
-    config = config or DraftPeaksConfig()
 
     # find pairs of local minima for each maximum
     maxima = find_maxima(spectrum.intensity)
@@ -75,39 +45,39 @@ def draft_peaks(
             maxima = np.mean(index).astype(int).item()
 
         # check peaks's width
-        if config.except_wide_peak:
-            if width[i] > config.width_max:
+        if CONFIG.except_wide_peak:
+            if width[i] > CONFIG.width_max:
                 continue
 
         # check n_counts
         n_counts = right - left + 1
 
-        if n_counts < config.n_counts_min:
+        if n_counts < CONFIG.n_counts_min:
             continue
 
-        if n_counts > config.n_counts_max:
+        if n_counts > CONFIG.n_counts_max:
             continue
 
         # check peaks's amplitude
         _amplitude = spectrum.intensity[maximum] - (spectrum.intensity[left] + spectrum.intensity[right])/2  # от среднего значения на границах до максимума
         _deviation = (spectrum.deviation[maximum]**2 + .25*spectrum.deviation[left]**2 + .25*spectrum.deviation[right]**2)**0.5
 
-        if _amplitude < config.amplitude_min:
+        if _amplitude < CONFIG.amplitude_min:
             continue
 
-        if _amplitude < config.noise_level * _deviation:
+        if _amplitude < CONFIG.noise_level * _deviation:
             continue
 
         # check clipped counts
-        if config.except_clipped_peak:
+        if CONFIG.except_clipped_peak:
             if any(spectrum.clipped[left:right+1]):
                 continue
 
         # check peaks's slope
-        if config.except_sloped_peak:
+        if CONFIG.except_sloped_peak:
             _slope = abs(spectrum.intensity[left] - spectrum.intensity[right]) / _amplitude
 
-            if _slope > config.slope_max:
+            if _slope > CONFIG.slope_max:
                 continue
 
         # gather peak
@@ -118,7 +88,7 @@ def draft_peaks(
             amplitude=_amplitude,
             deviation=_deviation,
 
-            except_edges=config.except_edges,
+            except_edges=CONFIG.except_edges,
         )
         peaks.append(peak)
 
