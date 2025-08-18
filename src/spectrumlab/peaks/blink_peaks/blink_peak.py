@@ -5,11 +5,11 @@ import numpy as np
 from spectrumlab.types import Array, Number
 
 
-@dataclass(frozen=False, slots=False)
-class Peak:
+@dataclass(frozen=True, slots=True)
+class BlinkPeak:
 
     minima: tuple[Number, Number]
-    maxima: tuple[Number, ...]
+    maxima: tuple[Number] | tuple[Number, Number] | tuple[Number, ...]
 
     except_edges: bool = field(default=False)
 
@@ -31,7 +31,7 @@ class Peak:
     def number(self) -> Array[Number]:
 
         left, right = self.minima
-        number = np.arange(left, right + 1)
+        number = np.arange(left, right+1)
 
         return number[self.index]
 

@@ -7,7 +7,7 @@ from spectrumlab.spectra import Spectrum
 from spectrumlab.types import Array, MicroMeter, Number, T, U
 
 if TYPE_CHECKING:
-    from spectrumlab.peaks.peak import Peak
+    from spectrumlab.peaks.blink_peaks import BlinkPeak
 
 
 class _FactoryBatch:
@@ -15,7 +15,7 @@ class _FactoryBatch:
     def __init__(self, spectrum: Spectrum):
         self.spectrum = spectrum
 
-    def create_from_peak(self, peak: 'Peak', threshold: float) -> '_Batch':
+    def create_from_peak(self, peak: 'BlinkPeak', threshold: float) -> '_Batch':
         lb, ub = peak.minima
 
         is_clipped = self.spectrum.clipped[lb:ub]
@@ -43,7 +43,7 @@ class FactoryGrid:
 
     def create_from_peaks(
         self,
-        peaks: Sequence['Peak'],
+        peaks: Sequence['BlinkPeak'],
         offset: Array[T] | None = None,
         scale: Array[float] | None = None,
         background: Array[float] | None = None,

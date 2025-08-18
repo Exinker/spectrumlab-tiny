@@ -9,7 +9,7 @@ import numpy as np
 from scipy import optimize
 
 from spectrumlab.grid import Grid
-from spectrumlab.peaks import Peak
+from spectrumlab.peaks.blink_peaks import BlinkPeak
 from spectrumlab.shapes.retrieve_peak_shape import (
     retrieve_shape_from_grid,
 )
@@ -35,7 +35,7 @@ FIGURES = contextvars.ContextVar('FIGURES', default=None)
 
 def retrieve_shape_from_spectrum(
     spectrum: Spectrum,
-    peaks: Sequence[Peak],
+    peaks: Sequence[BlinkPeak],
     n: int,
 ) -> Shape:
 
@@ -170,7 +170,7 @@ def retrieve_shape_from_spectrum(
                 )
 
                 lb, ub = peak.minima
-                n_points = 5 * (ub - lb + 1)
+                n_points = 5 * peak.n_numbers
                 x = np.linspace(spectrum.wavelength[lb], spectrum.wavelength[ub], n_points)
                 y_hat = shape(
                     x=np.linspace(spectrum.number[lb], spectrum.number[ub], n_points),

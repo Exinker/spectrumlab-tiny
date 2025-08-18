@@ -26,6 +26,7 @@ Number = NewType('Number', float)
 
 T = TypeVar('T', Number, MicroMeter)
 
+
 # --------        value units        --------
 Digit = NewType('Digit', float)
 Electron = NewType('Electron', float)
@@ -33,5 +34,10 @@ Percent = NewType('Percent', float)
 
 U = TypeVar('U', Digit, Electron, Percent)
 
+
 # --------        analyte signal units        --------
 R = NewType('R', float)
+
+
+# --------        other units        --------
+Symbol = NewType('Symbol', str)

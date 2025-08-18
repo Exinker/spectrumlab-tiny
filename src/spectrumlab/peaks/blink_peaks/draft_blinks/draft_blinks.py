@@ -3,18 +3,16 @@ from typing import Iterator, Sequence
 import numpy as np
 from scipy import signal
 
-from spectrumlab.peaks.draft_peaks.config import (
-    DRAFT_PEAKS_CONFIG as CONFIG,
-)
-from spectrumlab.peaks.peak import Peak
+from spectrumlab.peaks.blink_peaks.blink_peak import BlinkPeak
+from spectrumlab.peaks.blink_peaks.draft_blinks.config import DRAFT_BLINKS_CONFIG as CONFIG
 from spectrumlab.spectra import Spectrum
 from spectrumlab.types import Number, U
 
 
-def draft_peaks(
+def draft_blinks(
     spectrum: Spectrum,
-) -> tuple[Peak, ...]:
-    """Draft peaks from the spectrum.
+) -> tuple[BlinkPeak, ...]:
+    """Draft blink peaks from the spectrum.
 
     Author: Vaschenko Pavel
      Email: vaschenko@vmk.ru
@@ -81,7 +79,7 @@ def draft_peaks(
                 continue
 
         # gather peak
-        peak = Peak(
+        peak = BlinkPeak(
             minima=(left, right),
             maxima=(maximum,),
 
