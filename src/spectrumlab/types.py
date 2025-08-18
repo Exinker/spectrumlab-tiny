@@ -32,3 +32,6 @@ Electron = NewType('Electron', float)
 Percent = NewType('Percent', float)
 
 U = TypeVar('U', Digit, Electron, Percent)
+
+# --------        analyte signal units        --------
+R = NewType('R', float)
